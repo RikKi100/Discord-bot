@@ -3,65 +3,72 @@ import aiohttp
 import asyncio
 import os
 
-# Load environment variables
 TOKEN = os.getenv('DISCORD_TOKEN')
 CHANNEL_ID = int(os.getenv('CHANNEL_ID'))
 
-# Set up bot intents
 intents = discord.Intents.default()
 intents.messages = True
 intents.guilds = True
 intents.message_content = True
 
-client = discord.Client(intents=intents)
+class CripzBot(discord.Client):
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
 
-# Background task to fetch online CripZ~ players
-async def fetch_online_players():
-    while True:
-        await client.wait_until_ready()
-        print('Checking for online CripZ members...')
+    async def setup_hook(self):
+        print('[DEBUG] Running setup_hook...')
+        self.bg_task = self.loop.create_task(self.fetch_online_players())
 
-        try:
-            async with aiohttp.ClientSession() as session:
-                async with session.get('https://saesrpg.uk/server/live/') as resp:
-                    data = await resp.json()
+    async def on_ready(self):
+        print(f'Logged in as {self.user} (ID: {self.user.id})')
+        print('------')
 
-            online_cripz = []
-            for player in data['players']:
-                if 'CripZ~' in player.get('team', '') or 'CripZ~' in player.get('name', ''):
-                    name = player['name']
-                    class_spawn = player.get('class', 'Unknown')
-                    online_cripz.append(f"{name} ({class_spawn})")
+    async def fetch_online_players(self):
+        await self.wait_until_ready()
+        while True:
+            print('[DEBUG] Starting CripZ check...')
+            try:
+                async with aiohttp.ClientSession() as session:
+                    async with session.get('https://saesrpg.uk/server/live/') as resp:
+                        if resp.status != 200:
+                            print(f"[ERROR] Server returned status: {resp.status}")
+                            continue
+                        data = await resp.json()
 
-            channel = client.get_channel(CHANNEL_ID)
+                print("[DEBUG] Successfully fetched player data.")
 
-            if online_cripz:
-                message = "**CripZ Members Online:**\n" + "\n".join(online_cripz)
-            else:
-                message = "No CripZ members online."
+                online_cripz = []
+                for player in data['players']:
+                    name = player.get('name', '')
+                    team = player.get('team', '')
+                    if 'CripZ~' in name or 'CripZ~' in team:
+                        class_spawn = player.get('class', 'Unknown')
+                        print(f"[DEBUG] Found CripZ player: {name} ({class_spawn})")
+                        online_cripz.append(f"{name} ({class_spawn})")
 
-            await channel.send(message)
+                channel = self.get_channel(CHANNEL_ID)
+                if not channel:
+                    print("[ERROR] Channel is None. Double-check CHANNEL_ID.")
+                    continue
 
-        except Exception as e:
-            print(f"Error fetching players: {e}")
+                if online_cripz:
+                    message = "**CripZ Members Online:**\n" + "\n".join(online_cripz)
+                else:
+                    message = "No CripZ members online."
 
-        await asyncio.sleep(30)  # Check every 30 seconds
+                await channel.send(message)
+                print("[DEBUG] Message sent.")
 
-# When bot is ready
-@client.event
-async def on_ready():
-    print(f'Logged in as {client.user}')
-    print('Starting background task...')
-    client.loop.create_task(fetch_online_players())
+            except Exception as e:
+                print(f"[ERROR] Exception occurred: {e}")
 
-# Listen for !test command
-@client.event
-async def on_message(message):
-    if message.author == client.user:
-        return
+            await asyncio.sleep(30)
 
-    if message.content.lower() == '!test':
-        await message.channel.send('Bot is working!')
+    async def on_message(self, message):
+        if message.author == self.user:
+            return
+        if message.content.lower() == '!test':
+            await message.channel.send('Bot is working!')
 
-# Run bot
+client = CripzBot(intents=intents)
 client.run(TOKEN)

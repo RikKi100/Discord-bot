@@ -18,15 +18,10 @@ client = discord.Client(intents=intents)
 async def fetch_online_players():
     await client.wait_until_ready()
     print('[DEBUG] Starting CripZ check...')
-    
     try:
         headers = {'Accept': 'application/json'}
-
-        # Replace this URL with the correct one from saes.pro once you find it
-        api_url = 'https://saes.pro/server/live/'  # <-- Replace this URL
-        
         async with aiohttp.ClientSession() as session:
-            async with session.get(api_url, headers=headers) as resp:
+            async with session.get('https://saesrpg.uk/server/live/', headers=headers) as resp:
                 if resp.status != 200:
                     print(f"[ERROR] Server returned status: {resp.status}")
                     return
@@ -69,13 +64,6 @@ async def fetch_online_players():
 async def on_ready():
     print(f'Logged in as {client.user} (ID: {client.user.id})')
     fetch_online_players.start()
-
-    # Test message to confirm bot is working on startup
-    channel = client.get_channel(CHANNEL_ID)
-    if channel:
-        await channel.send("Bot is online and checking players!")
-    else:
-        print("[ERROR] Could not find the channel on startup.")
 
 @client.event
 async def on_message(message):

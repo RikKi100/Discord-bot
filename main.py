@@ -65,4 +65,13 @@ async def on_ready():
     else:
         print("[ERROR] Could not find the channel on startup.")
     
-   
+    fetch_online_players.start()
+
+@client.event
+async def on_message(message):
+    if message.author == client.user:
+        return
+    if message.content.lower() == '!test':
+        await message.channel.send('Bot is working!')
+
+client.run(TOKEN)

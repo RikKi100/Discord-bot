@@ -1,40 +1,58 @@
 import discord
-from discord.ext import tasks
 import aiohttp
 import asyncio
 import os
 
-TOKEN = os.getenv("DISCORD_TOKEN")
-CHANNEL_ID = int(os.getenv("CHANNEL_ID"))
+TOKEN = os.getenv('DISCORD_TOKEN')
+CHANNEL_ID = int(os.getenv('CHANNEL_ID'))
 
 intents = discord.Intents.default()
-intents.guilds = True
 intents.messages = True
+intents.guilds = True
+intents.message_content = True  # VERY IMPORTANT
 
 client = discord.Client(intents=intents)
+
+async def fetch_online_players():
+    while True:
+        await client.wait_until_ready()
+        try:
+            async with aiohttp.ClientSession() as session:
+                async with session.get('https://saesrpg.uk/server/live/') as resp:
+                    data = await resp.json()
+
+            online_cripz = []
+            for player in data['players']:
+                if 'CripZ~' in player.get('team', '') or 'CripZ~' in player.get('name', ''):
+                    name = player['name']
+                    class_spawn = player.get('class', 'Unknown')
+                    online_cripz.append(f"{name} ({class_spawn})")
+
+            channel = client.get_channel(CHANNEL_ID)
+
+            if online_cripz:
+                message = "**CripZ Members Online:**\n" + "\n".join(online_cripz)
+            else:
+                message = "No CripZ members online."
+
+            await channel.send(message)
+
+        except Exception as e:
+            print(f"Error fetching players: {e}")
+
+        await asyncio.sleep(30)
 
 @client.event
 async def on_ready():
     print(f'Logged in as {client.user}')
-    check_online.start()
+    client.loop.create_task(fetch_online_players())
 
-@tasks.loop(seconds=30)
-async def check_online():
-    async with aiohttp.ClientSession() as session:
-        async with session.get('https://saesrpg.uk/server/live/') as response:
-            if response.status != 200:
-                print('Failed to fetch data')
-                return
-            data = await response.json()
-
-            online_players = []
-            for player in data["players"]:
-                if player.get("team") == "Organization" and player.get("organisation", "").startswith("CripZ"):
-                    online_players.append(f'{player["name"]} - Spawned as {player["class"]}')
-
-            channel = client.get_channel(CHANNEL_ID)
-            if channel:
-                message_content = "**CripZ Members Online:**\n" + "\n".join(online_players) if online_players else "No CripZ members online."
-                await channel.send(message_content)
+@client.event
+async def on_message(message):
+    if message.author == client.user:
+        return
+    
+    if message.content.lower() == '!test':
+        await message.channel.send('Bot is working!')
 
 client.run(TOKEN)

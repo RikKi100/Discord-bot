@@ -3,7 +3,7 @@ import aiohttp
 import asyncio
 import os
 
-TOKEN = os.getenv('DISCORD_TOKEN')  # or hardcoded just for testing
+TOKEN = os.getenv('DISCORD_TOKEN')  # or hardcode for testing
 CHANNEL_ID = 1364554409627095060  # your real channel id
 
 intents = discord.Intents.default()
@@ -13,10 +13,15 @@ intents.message_content = True
 
 client = discord.Client(intents=intents)
 
+# Save the message object globally
+bot_message = None
+
 async def fetch_online_players():
     await client.wait_until_ready()
     channel = client.get_channel(CHANNEL_ID)
     print(f"Channel fetched: {channel}")
+
+    global bot_message
 
     while not client.is_closed():
         try:
@@ -24,7 +29,7 @@ async def fetch_online_players():
                 async with session.get('https://saesrpg.uk/server/live/') as resp:
                     print(f"API status: {resp.status}")
                     data = await resp.json()
-                    print(f"Data: {data}")
+                    print(f"Data fetched.")
 
             online_cripz = []
             for player in data.get('players', []):
@@ -34,12 +39,17 @@ async def fetch_online_players():
                     online_cripz.append(f"{name} ({class_spawn})")
 
             if online_cripz:
-                message = "**CripZ Members Online:**\n" + "\n".join(online_cripz)
+                new_message = "**CripZ Members Online:**\n" + "\n".join(online_cripz)
             else:
-                message = "No CripZ members online."
+                new_message = "No CripZ members online."
 
-            print(f"Sending message:\n{message}")
-            await channel.send(message)
+            # If it's the first time
+            if bot_message is None:
+                bot_message = await channel.send(new_message)
+                print("Initial message sent.")
+            else:
+                await bot_message.edit(content=new_message)
+                print("Message updated.")
 
         except Exception:
             import traceback

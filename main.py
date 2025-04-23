@@ -3,14 +3,17 @@ import aiohttp
 import asyncio
 import os
 
+# Load your token and channel from Railway environment variables
 TOKEN = os.getenv('DISCORD_TOKEN')
 CHANNEL_ID = int(os.getenv('CHANNEL_ID'))
 
+# Set up intents for the bot
 intents = discord.Intents.default()
 intents.messages = True
 intents.guilds = True
 intents.message_content = True
 
+# Define your bot using a custom class
 class CripzBot(discord.Client):
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
@@ -20,8 +23,7 @@ class CripzBot(discord.Client):
         self.bg_task = self.loop.create_task(self.fetch_online_players())
 
     async def on_ready(self):
-        print(f'Logged in as {self.user} (ID: {self.user.id})')
-        print('------')
+        print(f'[DEBUG] Logged in as {self.user} (ID: {self.user.id})')
 
     async def fetch_online_players(self):
         await self.wait_until_ready()
@@ -32,6 +34,7 @@ class CripzBot(discord.Client):
                     async with session.get('https://saesrpg.uk/server/live/') as resp:
                         if resp.status != 200:
                             print(f"[ERROR] Server returned status: {resp.status}")
+                            await asyncio.sleep(30)
                             continue
                         data = await resp.json()
 
@@ -48,7 +51,8 @@ class CripzBot(discord.Client):
 
                 channel = self.get_channel(CHANNEL_ID)
                 if not channel:
-                    print("[ERROR] Channel is None. Double-check CHANNEL_ID.")
+                    print("[ERROR] Channel is None. Check your CHANNEL_ID.")
+                    await asyncio.sleep(30)
                     continue
 
                 if online_cripz:
@@ -70,5 +74,6 @@ class CripzBot(discord.Client):
         if message.content.lower() == '!test':
             await message.channel.send('Bot is working!')
 
+# Start the bot
 client = CripzBot(intents=intents)
 client.run(TOKEN)

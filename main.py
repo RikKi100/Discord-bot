@@ -4,23 +4,28 @@ import aiohttp
 import asyncio
 import os
 
+# Load environment variables
 TOKEN = os.getenv('DISCORD_TOKEN')
 CHANNEL_ID = int(os.getenv('CHANNEL_ID'))
 
+# Check if TOKEN and CHANNEL_ID are available
 if not TOKEN or not CHANNEL_ID:
     print("[ERROR] DISCORD_TOKEN or CHANNEL_ID is not set.")
     exit()
 
+# Set up bot intents
 intents = discord.Intents.default()
 intents.messages = True
 intents.guilds = True
 intents.message_content = True
 
+# Create the Discord client
 client = discord.Client(intents=intents)
 
+# Store the last message to avoid duplicates
 last_message = ""
 
-@tasks.loop(seconds=30)
+@tasks.loop(seconds=30, reconnect=True)
 async def fetch_online_players():
     global last_message
     await client.wait_until_ready()
@@ -33,7 +38,7 @@ async def fetch_online_players():
                 if resp.status != 200:
                     print(f"[ERROR] Server returned status: {resp.status}")
                     return
-                
+
                 try:
                     data = await resp.json()
                 except aiohttp.ContentTypeError:
@@ -73,6 +78,7 @@ async def fetch_online_players():
 @client.event
 async def on_ready():
     print(f'Logged in as {client.user} (ID: {client.user.id})')
+    await fetch_online_players()  # Run once immediately
     if not fetch_online_players.is_running():
         fetch_online_players.start()
 
@@ -83,4 +89,5 @@ async def on_message(message):
     if message.content.lower() == '!test':
         await message.channel.send('Bot is working!')
 
+# Run the bot
 client.run(TOKEN)

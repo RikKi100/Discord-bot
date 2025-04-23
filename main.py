@@ -1,58 +1,72 @@
 import discord
 import aiohttp
 import asyncio
-import os
+import json
+from discord.ext import tasks
 
-TOKEN = os.getenv('DISCORD_TOKEN')
-CHANNEL_ID = int(os.getenv('CHANNEL_ID'))
+# ========== CONFIGURATION ==========
+DISCORD_TOKEN = "YOUR_BOT_TOKEN_HERE"
+CHANNEL_ID = YOUR_CHANNEL_ID_HERE  # Example: 123456789012345678
+UPDATE_INTERVAL = 30  # seconds
+CRIPZ_ORG_NAME = "CripZ~"
+# ====================================
 
 intents = discord.Intents.default()
 intents.messages = True
-intents.guilds = True
-intents.message_content = True  # VERY IMPORTANT
-
 client = discord.Client(intents=intents)
 
-async def fetch_online_players():
-    while True:
-        await client.wait_until_ready()
-        try:
-            async with aiohttp.ClientSession() as session:
-                async with session.get('https://saesrpg.uk/server/live/') as resp:
-                    data = await resp.json()
+message_to_edit = None
 
-            online_cripz = []
-            for player in data['players']:
-                if 'CripZ~' in player.get('team', '') or 'CripZ~' in player.get('name', ''):
-                    name = player['name']
-                    class_spawn = player.get('class', 'Unknown')
-                    online_cripz.append(f"{name} ({class_spawn})")
+async def fetch_online_cripz():
+    async with aiohttp.ClientSession() as session:
+        async with session.get("https://saesrpg.uk/server/live/") as resp:
+            if resp.status != 200:
+                return []
+            data = await resp.json()
 
-            channel = client.get_channel(CHANNEL_ID)
+            cripz_players = []
+            for player in data.get('players', []):
+                if player.get('team') == CRIPZ_ORG_NAME:
+                    cripz_players.append({
+                        'name': player.get('name'),
+                        'class': player.get('team')
+                    })
+            return cripz_players
 
-            if online_cripz:
-                message = "**CripZ Members Online:**\n" + "\n".join(online_cripz)
-            else:
-                message = "No CripZ members online."
+@tasks.loop(seconds=UPDATE_INTERVAL)
+async def update_cripz_online():
+    global message_to_edit
+    channel = client.get_channel(CHANNEL_ID)
 
-            await channel.send(message)
+    if channel is None:
+        print("Couldn't find the channel. Check the CHANNEL_ID.")
+        return
 
-        except Exception as e:
-            print(f"Error fetching players: {e}")
+    players = await fetch_online_cripz()
 
-        await asyncio.sleep(30)
+    if players:
+        content = "**CripZ~ Members Currently Online:**\n\n"
+        content += "| Player Name | Class (Team) |\n"
+        content += "|-------------|--------------|\n"
+        for p in players:
+            content += f"| {p['name']} | {p['class']} |\n"
+    else:
+        content = "**No CripZ~ members currently online.**\n"
+
+    content += f"\n(Last updated: <t:{int(discord.utils.utcnow().timestamp())}:R>)"
+
+    try:
+        if message_to_edit is None:
+            message_to_edit = await channel.send(content)
+        else:
+            await message_to_edit.edit(content=content)
+    except Exception as e:
+        print(f"Error updating message: {e}")
 
 @client.event
 async def on_ready():
-    print(f'Logged in as {client.user}')
-    client.loop.create_task(fetch_online_players())
+    print(f"Logged in as {client.user} (ID: {client.user.id})")
+    print("------")
+    update_cripz_online.start()
 
-@client.event
-async def on_message(message):
-    if message.author == client.user:
-        return
-    
-    if message.content.lower() == '!test':
-        await message.channel.send('Bot is working!')
-
-client.run(TOKEN)
+client.run(DISCORD_TOKEN)

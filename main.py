@@ -18,11 +18,12 @@ client = discord.Client(intents=intents)
 async def fetch_online_players():
     await client.wait_until_ready()
     print('[DEBUG] Starting CripZ check...')
-    
     try:
         headers = {'Accept': 'application/json'}
+        
+        # Changed the URL here to 'https://saes.pro' (adjust if needed)
         async with aiohttp.ClientSession() as session:
-            async with session.get('https://saesrpg.uk/server/live/', headers=headers) as resp:
+            async with session.get('https://saes.pro/server/live/', headers=headers) as resp:
                 if resp.status != 200:
                     print(f"[ERROR] Server returned status: {resp.status}")
                     return
@@ -35,18 +36,25 @@ async def fetch_online_players():
                     return
 
         print("[DEBUG] Successfully fetched player data.")
-        print(f"[DEBUG] Full player data received: {data}")
 
-        # TEMP: Send all online players, not just CripZ
-        player_list = [f"{p.get('name', 'Unknown')} ({p.get('team', 'Unknown')})" for p in data.get('players', [])]
-        message = "**All Online Players:**\n" + "\n".join(player_list[:20])  # Limit to 20 to avoid spam
+        online_cripz = []
+        for player in data.get('players', []):
+            name = player.get('name', '')
+            team = player.get('team', '')
+            if 'CripZ~' in name or 'CripZ~' in team:
+                class_spawn = player.get('class', 'Unknown')
+                print(f"[DEBUG] Found CripZ player: {name} ({class_spawn})")
+                online_cripz.append(f"{name} ({class_spawn})")
 
-        print(f"[DEBUG] CHANNEL_ID = {CHANNEL_ID}")
         channel = client.get_channel(CHANNEL_ID)
-        print(f"[DEBUG] Channel object: {channel}")
         if not channel:
-            print("[ERROR] Could not find channel. Check CHANNEL_ID and bot's access.")
+            print("[ERROR] Channel is None. Check your CHANNEL_ID.")
             return
+
+        if online_cripz:
+            message = "**CripZ Members Online:**\n" + "\n".join(online_cripz)
+        else:
+            message = "No CripZ members online."
 
         await channel.send(message)
         print("[DEBUG] Message sent.")
@@ -57,14 +65,6 @@ async def fetch_online_players():
 @client.event
 async def on_ready():
     print(f'Logged in as {client.user} (ID: {client.user.id})')
-    
-    # Test message on startup to confirm it can send
-    channel = client.get_channel(CHANNEL_ID)
-    if channel:
-        await channel.send("Bot is online and watching SAES players!")
-    else:
-        print("[ERROR] Could not find the channel on startup.")
-    
     fetch_online_players.start()
 
 @client.event

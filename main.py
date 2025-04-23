@@ -18,6 +18,7 @@ client = discord.Client(intents=intents)
 async def fetch_online_players():
     await client.wait_until_ready()
     print('[DEBUG] Starting CripZ check...')
+    
     try:
         headers = {'Accept': 'application/json'}
         async with aiohttp.ClientSession() as session:
@@ -34,25 +35,18 @@ async def fetch_online_players():
                     return
 
         print("[DEBUG] Successfully fetched player data.")
+        print(f"[DEBUG] Full player data received: {data}")
 
-        online_cripz = []
-        for player in data.get('players', []):
-            name = player.get('name', '')
-            team = player.get('team', '')
-            if 'CripZ~' in name or 'CripZ~' in team:
-                class_spawn = player.get('class', 'Unknown')
-                print(f"[DEBUG] Found CripZ player: {name} ({class_spawn})")
-                online_cripz.append(f"{name} ({class_spawn})")
+        # TEMP: Send all online players, not just CripZ
+        player_list = [f"{p.get('name', 'Unknown')} ({p.get('team', 'Unknown')})" for p in data.get('players', [])]
+        message = "**All Online Players:**\n" + "\n".join(player_list[:20])  # Limit to 20 to avoid spam
 
+        print(f"[DEBUG] CHANNEL_ID = {CHANNEL_ID}")
         channel = client.get_channel(CHANNEL_ID)
+        print(f"[DEBUG] Channel object: {channel}")
         if not channel:
-            print("[ERROR] Channel is None. Check your CHANNEL_ID.")
+            print("[ERROR] Could not find channel. Check CHANNEL_ID and bot's access.")
             return
-
-        if online_cripz:
-            message = "**CripZ Members Online:**\n" + "\n".join(online_cripz)
-        else:
-            message = "No CripZ members online."
 
         await channel.send(message)
         print("[DEBUG] Message sent.")
@@ -63,13 +57,12 @@ async def fetch_online_players():
 @client.event
 async def on_ready():
     print(f'Logged in as {client.user} (ID: {client.user.id})')
-    fetch_online_players.start()
-
-@client.event
-async def on_message(message):
-    if message.author == client.user:
-        return
-    if message.content.lower() == '!test':
-        await message.channel.send('Bot is working!')
-
-client.run(TOKEN)
+    
+    # Test message on startup to confirm it can send
+    channel = client.get_channel(CHANNEL_ID)
+    if channel:
+        await channel.send("Bot is online and watching SAES players!")
+    else:
+        print("[ERROR] Could not find the channel on startup.")
+    
+   

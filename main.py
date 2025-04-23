@@ -19,17 +19,24 @@ async def fetch_online_players():
     await client.wait_until_ready()
     print('[DEBUG] Starting CripZ check...')
     try:
+        headers = {'Accept': 'application/json'}
         async with aiohttp.ClientSession() as session:
-            async with session.get('https://saesrpg.uk/server/live/') as resp:
+            async with session.get('https://saesrpg.uk/server/live/', headers=headers) as resp:
                 if resp.status != 200:
                     print(f"[ERROR] Server returned status: {resp.status}")
                     return
-                data = await resp.json()
+                
+                try:
+                    data = await resp.json()
+                except aiohttp.ContentTypeError:
+                    text = await resp.text()
+                    print(f"[ERROR] Failed to parse JSON. Response content:\n{text}")
+                    return
 
         print("[DEBUG] Successfully fetched player data.")
 
         online_cripz = []
-        for player in data['players']:
+        for player in data.get('players', []):
             name = player.get('name', '')
             team = player.get('team', '')
             if 'CripZ~' in name or 'CripZ~' in team:
